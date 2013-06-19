@@ -11,3 +11,6 @@
 *.lai
 *.la
 *.a
+
+# Since there is ./configure script we don't need Makefile
+Makefile

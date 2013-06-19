@@ -29,6 +29,11 @@
 #include "device/devicepopen.h"
 #include "device/deviceltbl.h"
 
+#ifdef HAVE_LIBUSB
+  #include "device/devicelightpack.h"
+  #include "device/deviceibelight.h"
+#endif
+
 #ifdef HAVE_OLA
   #include "device/deviceola.h"
 #endif
@@ -762,6 +767,23 @@ bool CConfig::BuildDeviceConfig(std::vector<CDevice*>& devices, CClientsHandler&
       return false;
 #endif
     }
+    else if (type == "lightpack")
+    {
+#ifdef HAVE_LIBUSB
+      CDevice* device = NULL;
+      if (!BuildLightpack(device, i, clients))
+      {
+        if (device)
+          delete device;
+        return false;
+      }
+      devices.push_back(device);
+#else
+      LogError("%s line %i: boblightd was built without libusb, no support for lightpack devices",
+               m_filename.c_str(), linenr);
+      return false;
+#endif
+    }
     else if (type == "lpd8806" || type == "ws2801")
     {
 #ifdef HAVE_LINUX_SPI_SPIDEV_H
@@ -1071,6 +1093,34 @@ bool CConfig::BuildiBeLight(CDevice*& device, int devicenr, CClientsHandler& cli
 }
 #endif
 
+#ifdef HAVE_LIBUSB
+bool CConfig::BuildLightpack(CDevice*& device, int devicenr, CClientsHandler& clients)
+{
+  CDeviceLightpack* lightpackdevice = new CDeviceLightpack(clients);
+  device = lightpackdevice;
+
+  if (!SetDeviceName(device, devicenr))
+    return false;
+
+  if (!SetDeviceChannels(device, devicenr))
+    return false;
+
+  if (!SetDeviceInterval(device, devicenr))
+    return false;
+
+  SetDeviceBus(lightpackdevice, devicenr);
+  SetDeviceAddress(lightpackdevice, devicenr);
+  SetDeviceAllowSync(lightpackdevice, devicenr);
+  SetDeviceDebug(lightpackdevice, devicenr);
+  SetDeviceThreadPriority(lightpackdevice, devicenr);
+
+  device->SetType(LIGHTPACK);
+
+  return true;
+}
+#endif
+
+
 bool CConfig::BuildDioder(CDevice*& device, int devicenr, CClientsHandler& clients)
 {
   CDeviceDioder* dioderdevice = new CDeviceDioder(clients);
@@ -1294,7 +1344,7 @@ void CConfig::SetDeviceLatency(CDeviceSound* device, int devicenr)
 #endif
 
 #ifdef HAVE_LIBUSB
-void CConfig::SetDeviceBus(CDeviceiBeLight* device, int devicenr)
+void CConfig::SetDeviceBus(CDeviceUsb* device, int devicenr)
 {
   string line, strvalue;
   int linenr = GetLineWithKey("bus", m_devicelines[devicenr].lines, line);
@@ -1305,10 +1355,10 @@ void CConfig::SetDeviceBus(CDeviceiBeLight* device, int devicenr)
 
   int busnr;
   StrToInt(strvalue, busnr);
-  device->SetBusNr(busnr);
+  device->SetBusNumber(busnr);
 }
 
-void CConfig::SetDeviceAddress(CDeviceiBeLight* device, int devicenr)
+void CConfig::SetDeviceAddress(CDeviceUsb* device, int devicenr)
 {
   string line, strvalue;
   int linenr = GetLineWithKey("address", m_devicelines[devicenr].lines, line);
@@ -1319,7 +1369,7 @@ void CConfig::SetDeviceAddress(CDeviceiBeLight* device, int devicenr)
 
   int address;
   StrToInt(strvalue, address);
-  device->SetAddress(address);
+  device->SetDeviceAddress(address);
 }
 #endif
 
