@@ -61,12 +61,12 @@
     //gets a functionpointer from dlsym, and returns char* from dlerror if it didn't work
     #define BOBLIGHT_FUNCTION(returnvalue, name, arguments) \
     name = BOBLIGHT_CAST(returnvalue (*) arguments)(dlsym(p_boblight, #name)); \
-                        { char* error = dlerror(); if (error) return error; }
+                        { const char* error = dlerror(); if (error) return error; }
 
     void* p_boblight = NULL; //where we put the lib
 
     //load function pointers
-    char* boblight_loadlibrary(const char* filename)
+    const char* boblight_loadlibrary(const char* filename)
     {
       if (filename == NULL)
         filename = "libboblight.so";
@@ -92,7 +92,7 @@
   //you can define BOBLIGHT_DLOPEN_EXTERN when you load the library in another file
   #elif defined(BOBLIGHT_DLOPEN_EXTERN)
 
-    extern char* boblight_loadlibrary(const char* filename);
+    extern const char* boblight_loadlibrary(const char* filename);
     extern void* p_boblight;
     #define BOBLIGHT_FUNCTION(returnvalue, name, arguments) extern returnvalue (* name ) arguments
     #include "boblight-functions.h"

@@ -41,7 +41,7 @@ CFlagManagerConstant g_flagmanager;
 int main(int argc, char *argv[])
 {
   //load the boblight lib, if it fails we get a char* from dlerror()
-  char* boblight_error = boblight_loadlibrary(NULL);
+  const char* boblight_error = boblight_loadlibrary(NULL);
   if (boblight_error)
   {
     PrintError(boblight_error);
