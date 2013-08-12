@@ -7,6 +7,7 @@ AM_CFLAGS =\
 	 -g
 
 bin_PROGRAMS = boblightd \
+	boblight-aml \
 	boblight-constant
         
 
@@ -18,6 +19,11 @@ bin_PROGRAMS += boblight-v4l
 endif
 
 endif
+
+boblight_aml_SOURCES  = clients/boblight-aml/boblight-aml.cpp
+boblight_aml_SOURCES += clients/boblight-aml/flagmanager-aml.cpp
+boblight_aml_SOURCES += clients/flagmanager.cpp
+boblight_aml_SOURCES += util/misc.cpp
 
 boblight_v4l_SOURCES = \
 	clients/boblight-v4l/boblight-v4l.cpp \
