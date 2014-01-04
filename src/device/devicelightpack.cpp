@@ -22,8 +22,10 @@
 #include "util/misc.h"
 #include "util/timeutils.h"
 
-#define LIGHTPACK_VID       0x03EB
-#define LIGHTPACK_PID       0x204F
+#define LIGHTPACK_VID_LEGACY 0x03EB
+#define LIGHTPACK_PID_LEGACY 0x204F
+#define LIGHTPACK_VID        0x1D50
+#define LIGHTPACK_PID        0x6022
 #define LIGHTPACK_INTERFACE 0
 #define LIGHTPACK_TIMEOUT   100
 
@@ -66,7 +68,8 @@ bool CDeviceLightpack::SetupDevice()
     }
 
     //try to find a usb device with the Lightpack vendor and product ID
-    if (descriptor.idVendor == LIGHTPACK_VID && descriptor.idProduct == LIGHTPACK_PID)
+    if ((descriptor.idVendor == LIGHTPACK_VID && descriptor.idProduct == LIGHTPACK_PID) ||
+        (descriptor.idVendor == LIGHTPACK_VID_LEGACY && descriptor.idProduct == LIGHTPACK_PID_LEGACY) )
     {
 
       int busnumber = libusb_get_bus_number(devicelist[i]);
