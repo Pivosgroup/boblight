@@ -43,7 +43,7 @@ using namespace std;
 //#include <linux/pivos/aml_snapshot.h>
 
 #define AMSNAPSHOT_IOC_MAGIC 'T'
-#define AMSNAPSHOT_IOC_GET_FRAME   _IOW(AMSNAPSHOT_IOC_MAGIC, 0x04, struct aml_snapshot_t)
+#define AMSNAPSHOT_IOC_GET_FRAME   _IOW(AMSNAPSHOT_IOC_MAGIC, 0x04, unsigned long)
 
 #define AMSNAPSHOT_FOURCC(a, b, c, d)\
 	((__u32)(a) | ((__u32)(b) << 8) | ((__u32)(c) << 16) | ((__u32)(d) << 24))
@@ -90,7 +90,7 @@ static void SignalHandler(int signum)
 #define AMSTREAM_IOC_MAGIC  'S'
 #define AMSTREAM_IOC_GET_VIDEO_DISABLE  _IOR(AMSTREAM_IOC_MAGIC, 0x48, unsigned long)
 #define AMSTREAM_IOC_GET_VIDEO_AXIS     _IOR(AMSTREAM_IOC_MAGIC, 0x4b, unsigned long)
-static int amvideo_utils_get_position(aml_snapshot_t *snapshot)
+static int amvideo_utils_get_position(aml_snapshot_t &snapshot)
 {
   int video_fd;
   int axis[4], video_disable;
@@ -110,38 +110,33 @@ static int amvideo_utils_get_position(aml_snapshot_t *snapshot)
   ioctl(video_fd, AMSTREAM_IOC_GET_VIDEO_AXIS, &axis[0]);
   close(video_fd);
 
-  snapshot->src_x = axis[0];
-  snapshot->src_y = axis[1];
-  snapshot->src_width  = axis[2] - axis[0] + 1;
-  snapshot->src_height = axis[3] - axis[1] + 1;
+  snapshot.src_x = axis[0];
+  snapshot.src_y = axis[1];
+  snapshot.src_width  = axis[2] - axis[0] + 1;
+  snapshot.src_height = axis[3] - axis[1] + 1;
 
   return 0;
 }
 
-static int snap_frame(int fd, aml_snapshot_t *snapshot)
-{
-  // match source ratio if possible
-  int disable_video = amvideo_utils_get_position(snapshot);
-
-  if (disable_video) {
-    memset((void*)snapshot->dst_vaddr, 0x00, snapshot->dst_size);
-    return 1;
-  } else {
-    return ioctl(fd, AMSNAPSHOT_IOC_GET_FRAME, snapshot);
-  }
-}
-
 static void frameToboblight(void *boblight, uint8_t* outputptr, int w, int h, int stride)
 {
+  if (!boblight)
+    return;
+
+  if (!outputptr)
+    return;
+
   //read out pixels and hand them to libboblight
   uint8_t* buffptr;
   for (int y = 0; y < h; y++) {
     buffptr = outputptr + stride * y;
     for (int x = 0; x < w; x++) {
       int rgb[3];
-      rgb[2] = *(buffptr++);
-      rgb[1] = *(buffptr++);
       rgb[0] = *(buffptr++);
+      rgb[1] = *(buffptr++);
+      rgb[2] = *(buffptr++);
+
+      //fprintf(stdout, "frameToboblight: x(%d), y(%d)\n", x, y);
 
       boblight_addpixelxy(boblight, x, y, rgb);
     }
@@ -150,8 +145,8 @@ static void frameToboblight(void *boblight, uint8_t* outputptr, int w, int h, in
 
 static int Run(void* boblight)
 {
+  int snapshot_fd = -1;
   aml_snapshot_t aml_snapshot = {0};
-  int snapshot_fd = open("/dev/aml_snapshot", O_RDWR | O_NONBLOCK, 0);
 
   aml_snapshot.dst_width  = 160;
   aml_snapshot.dst_height = 160;
@@ -175,9 +170,30 @@ static int Run(void* boblight)
   while(!g_stop)
   {
     int64_t bgn = GetTimeUs();
-    if (snap_frame(snapshot_fd, &aml_snapshot) == 0) {
+
+    if (snapshot_fd == -1) {
+      snapshot_fd = open("/dev/aml_snapshot", O_RDWR | O_NONBLOCK, 0);
+      if (snapshot_fd == -1) {
+        sleep(1);
+        continue;
+      } else {
+        fprintf(stdout, "snapshot_fd(%d) \n", snapshot_fd);
+      }
+    }
+
+    // match source ratio if possible
+    if (amvideo_utils_get_position(aml_snapshot) != 0) {
+      memset((void*)aml_snapshot.dst_vaddr, 0x00, aml_snapshot.dst_size);
       frameToboblight(boblight, (uint8_t*)aml_snapshot.dst_vaddr,
-        aml_snapshot.src_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
+        aml_snapshot.dst_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
+      sleep(1);
+      continue;
+    }
+
+    if (ioctl(snapshot_fd, AMSNAPSHOT_IOC_GET_FRAME, &aml_snapshot) == 0) {
+      // image to boblight convert.
+      frameToboblight(boblight, (uint8_t*)aml_snapshot.dst_vaddr,
+        aml_snapshot.dst_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
 
       if (!boblight_sendrgb(boblight, 1, NULL))
       {
@@ -246,7 +262,7 @@ int main(int argc, char *argv[])
     //init boblight
     void* boblight = boblight_init();
 
-    fprintf(stdout, "Connecting to boblightd\n");
+    fprintf(stdout, "Connecting to boblightd(%p)\n", boblight);
     
     //try to connect, if we can't then bitch to stderr and destroy boblight
     if (!boblight_connect(boblight, g_flagmanager.m_address, g_flagmanager.m_port, 5000000) ||
