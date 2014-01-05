@@ -217,6 +217,12 @@ static int Run(void* boblight)
       usleep((int)(-calc_time_ms * 1000));
   }
 
+  // last image is black
+  memset((void*)aml_snapshot.dst_vaddr, 0x00, aml_snapshot.dst_size);
+  frameToboblight(boblight, (uint8_t*)aml_snapshot.dst_vaddr,
+    aml_snapshot.dst_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
+  boblight_sendrgb(boblight, 1, NULL);
+
   boblight_destroy(boblight);
   close(snapshot_fd);
 }
