@@ -147,6 +147,7 @@ static int Run(void* boblight)
 {
   int snapshot_fd = -1;
   aml_snapshot_t aml_snapshot = {0};
+  int lastPriority = 255;
 
   aml_snapshot.dst_width  = 160;
   aml_snapshot.dst_height = 160;
@@ -183,10 +184,11 @@ static int Run(void* boblight)
 
     // match source ratio if possible
     if (amvideo_utils_get_position(aml_snapshot) != 0) {
-      memset((void*)aml_snapshot.dst_vaddr, 0x00, aml_snapshot.dst_size);
-      frameToboblight(boblight, (uint8_t*)aml_snapshot.dst_vaddr,
-        aml_snapshot.dst_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
-      boblight_sendrgb(boblight, 1, NULL);
+      if ( lastPriority != 255)
+      {
+        boblight_setpriority(boblight, 255);
+        lastPriority = 255;
+      }
       sleep(1);
       continue;
     }
@@ -195,7 +197,11 @@ static int Run(void* boblight)
       // image to boblight convert.
       frameToboblight(boblight, (uint8_t*)aml_snapshot.dst_vaddr,
         aml_snapshot.dst_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
-
+      if (lastPriority != g_flagmanager.m_priority)
+      {
+        boblight_setpriority(boblight, g_flagmanager.m_priority);
+        lastPriority = g_flagmanager.m_priority;
+      }
       if (!boblight_sendrgb(boblight, 1, NULL))
       {
         // some error happened, probably connection broken, so bitch and try again
@@ -219,13 +225,10 @@ static int Run(void* boblight)
   }
 
   // last image is black
-  memset((void*)aml_snapshot.dst_vaddr, 0x00, aml_snapshot.dst_size);
-  frameToboblight(boblight, (uint8_t*)aml_snapshot.dst_vaddr,
-    aml_snapshot.dst_width, aml_snapshot.dst_height, aml_snapshot.dst_stride);
-  boblight_sendrgb(boblight, 1, NULL);
-
+  boblight_setpriority(boblight, 255);
   boblight_destroy(boblight);
   close(snapshot_fd);
+  return 0;
 }
 
 /*********************************************************
@@ -273,7 +276,7 @@ int main(int argc, char *argv[])
     
     //try to connect, if we can't then bitch to stderr and destroy boblight
     if (!boblight_connect(boblight, g_flagmanager.m_address, g_flagmanager.m_port, 5000000) ||
-        !boblight_setpriority(boblight, g_flagmanager.m_priority)) {
+        !boblight_setpriority(boblight, 255)) {
       PrintError(boblight_geterror(boblight));
       fprintf(stdout, "Waiting 10 seconds before trying again\n");
       boblight_destroy(boblight);
